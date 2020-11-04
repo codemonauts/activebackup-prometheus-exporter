@@ -2,12 +2,14 @@ package main
 
 import (
 	"log"
+	"path"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 type abbCollector struct {
+	dataDir               string
 	statusMetric          *prometheus.Desc
 	startTimeMetric       *prometheus.Desc
 	endTimeMetric         *prometheus.Desc
@@ -22,8 +24,9 @@ type deviceResult struct {
 	TransferedBytes int    `db:"transfered_bytes"`
 }
 
-func newABBCollector() *abbCollector {
+func newABBCollector(dataDir string) *abbCollector {
 	return &abbCollector{
+		dataDir: dataDir,
 		statusMetric: prometheus.NewDesc("abb_device_result_status",
 			"Status of the latest device backup",
 			[]string{"device_name"},
@@ -58,7 +61,7 @@ func (collector *abbCollector) Describe(ch chan<- *prometheus.Desc) {
 
 //Collect implements required collect function for all promehteus collectors
 func (collector *abbCollector) Collect(ch chan<- prometheus.Metric) {
-	db, err := sqlx.Connect("sqlite3", "activity.db")
+	db, err := sqlx.Connect("sqlite3", path.Join(collector.dataDir, "activity.db"))
 	if err != nil {
 		log.Fatalln(err)
 	}

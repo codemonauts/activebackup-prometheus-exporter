@@ -1,4 +1,4 @@
-module github.com/codemonauts/ABB-prometheus-exporter
+module github.com/codemonauts/activebackup-prometheus-exporter
 
 go 1.15
 

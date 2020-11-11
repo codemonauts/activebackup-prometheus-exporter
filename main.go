@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -15,23 +16,43 @@ import (
 var dataDir string
 
 func init() {
-	flag.StringVar(&dataDir, "dir", "/volume1/@ActiveBackup", "Path to the ABB folder")
+	flag.StringVar(&dataDir, "dir", "/volume1", "Path to the volume containing the ActiveBackup folders")
 }
 
 func main() {
 	flag.Parse()
 
-	if _, err := os.Stat(path.Join(dataDir, "activity.db")); os.IsNotExist(err) {
-		log.Fatal("No activity.db in the given directory. Check your path")
+	count := 0
+
+	if _, err := os.Stat(path.Join(dataDir, "@ActiveBackup/activity.db")); os.IsNotExist(err) {
+		log.Println("You don't have 'ActiveBackup for Business' installed")
+	} else {
+		count++
+		log.Println("Found an @ActiveBackup folder. Loading the 'ActiveBackup for Business' module")
+		abbCollector := newABBCollector(dataDir)
+		prometheus.MustRegister(abbCollector)
 	}
 
-	if _, err := os.Stat(path.Join(dataDir, "config.db")); os.IsNotExist(err) {
-		log.Fatal("No config.db in the given directory. Check your path")
+	if _, err := os.Stat(path.Join(dataDir, "@ActiveBackup-GSuite/db/config.sqlite")); os.IsNotExist(err) {
+		log.Println("You don't have 'ActiveBackup for GSuite' installed")
+	} else {
+		log.Println("Found an @ActiveBackup-GSuite folder. Loading the 'ActiveBackup for GSuite' module")
+		gsuiteCollector, err := newGSuiteCollector(dataDir)
+		if err != nil {
+			log.Println(err)
+		}
+		count++
+		prometheus.MustRegister(gsuiteCollector)
 	}
 
-	abbCollector := newABBCollector(dataDir)
-	prometheus.MustRegister(abbCollector)
+	if count == 0 {
+		log.Fatal("It appears that you don't have any ActiveBackup software installed. Exiting.")
+		os.Exit(1)
+	}
 
 	http.Handle("/metrics", promhttp.Handler())
-	http.ListenAndServe(":8000", nil)
+
+	fmt.Println("Listening on  :8000")
+
+	log.Fatal(http.ListenAndServe(":8000", nil))
 }

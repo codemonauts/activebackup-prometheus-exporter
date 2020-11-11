@@ -1,4 +1,4 @@
-ABB-prometheus-exporter
+activebackup-prometheus-exporter
 *.db
 *.db-shm
 *.db-wal

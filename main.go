@@ -29,7 +29,10 @@ func main() {
 	} else {
 		count++
 		log.Println("Found an @ActiveBackup folder. Loading the 'ActiveBackup for Business' module")
-		abbCollector := newABBCollector(dataDir)
+		abbCollector, err := newABBCollector(dataDir)
+		if err != nil {
+			log.Println(err)
+		}
 		prometheus.MustRegister(abbCollector)
 	}
 

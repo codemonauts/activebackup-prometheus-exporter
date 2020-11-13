@@ -9,7 +9,7 @@ import (
 )
 
 type abbCollector struct {
-	dataDir               string
+	activityDB            *sqlx.DB
 	statusMetric          *prometheus.Desc
 	startTimeMetric       *prometheus.Desc
 	endTimeMetric         *prometheus.Desc
@@ -24,9 +24,14 @@ type deviceResult struct {
 	TransferedBytes int    `db:"transfered_bytes"`
 }
 
-func newABBCollector(dataDir string) *abbCollector {
+func newABBCollector(dataDir string) (*abbCollector, error) {
+	activityDB, err := sqlx.Connect("sqlite3", path.Join(dataDir, "@ActiveBackup/activity.db"))
+	if err != nil {
+		return nil, err
+	}
+
 	return &abbCollector{
-		dataDir: path.Join(dataDir, "@ActiveBackup"),
+		activityDB: activityDB,
 		statusMetric: prometheus.NewDesc("ab_business_device_result_status",
 			"Status of the latest device backup",
 			[]string{"device_name"},
@@ -47,7 +52,7 @@ func newABBCollector(dataDir string) *abbCollector {
 			[]string{"device_name"},
 			nil,
 		),
-	}
+	}, nil
 }
 
 //Each and every collector must implement the Describe function.
@@ -61,12 +66,8 @@ func (collector *abbCollector) Describe(ch chan<- *prometheus.Desc) {
 
 //Collect implements required collect function for all promehteus collectors
 func (collector *abbCollector) Collect(ch chan<- prometheus.Metric) {
-	db, err := sqlx.Connect("sqlite3", path.Join(collector.dataDir, "activity.db"))
-	if err != nil {
-		log.Fatalln(err)
-	}
 	results := []deviceResult{}
-	err = db.Select(&results, "select status, device_name, time_start,time_end,transfered_bytes  from device_result_table where device_result_id in (select max(device_result_id) from device_result_table group by device_name) and time_end != 0;")
+	err := collector.activityDB.Select(&results, "select status, device_name, time_start,time_end,transfered_bytes  from device_result_table where device_result_id in (select max(device_result_id) from device_result_table group by device_name) and time_end != 0;")
 	if err != nil {
 		log.Fatalln(err)
 

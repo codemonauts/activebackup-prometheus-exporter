@@ -67,7 +67,8 @@ func (collector *abbCollector) Describe(ch chan<- *prometheus.Desc) {
 //Collect implements required collect function for all promehteus collectors
 func (collector *abbCollector) Collect(ch chan<- prometheus.Metric) {
 	results := []deviceResult{}
-	err := collector.activityDB.Select(&results, "select status, device_name, time_start,time_end,transfered_bytes  from device_result_table where device_result_id in (select max(device_result_id) from device_result_table group by device_name) and time_end != 0;")
+	err := collector.activityDB.Select(&results, `SELECT status, device_name, time_start,time_end,transfered_bytes FROM device_result_table
+			WHERE device_result_id IN (SELECT max(device_result_id) FROM device_result_table WHERE time_end != 0 GROUP BY device_name);`)
 	if err != nil {
 		log.Fatalln(err)
 

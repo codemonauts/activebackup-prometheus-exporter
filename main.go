@@ -13,10 +13,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-var dataDir string
+var (
+	dataDir string
+	port    int
+)
 
 func init() {
 	flag.StringVar(&dataDir, "dir", "/volume1", "Path to the volume containing the ActiveBackup folders")
+	flag.IntVar(&port, "port", 9763, "Listening port")
 }
 
 func main() {
@@ -55,7 +59,7 @@ func main() {
 
 	http.Handle("/metrics", promhttp.Handler())
 
-	fmt.Println("Listening on  :8000")
+	fmt.Printf("Listening on :%d\n", port)
 
-	log.Fatal(http.ListenAndServe(":8000", nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 }

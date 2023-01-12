@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"path"
 
@@ -9,8 +10,8 @@ import (
 )
 
 type gsuiteCollector struct {
-	logDB                 *sqlx.DB
-	confDB                *sqlx.DB
+	logDB_Path            string
+	confDB_Path           string
 	statusMetric          *prometheus.Desc
 	errorCodeMetric       *prometheus.Desc
 	startTimeMetric       *prometheus.Desc
@@ -83,18 +84,12 @@ type jobResult struct {
 }
 
 func newGSuiteCollector(dataDir string) (*gsuiteCollector, error) {
-	logDB, err := sqlx.Connect("sqlite3", path.Join(dataDir, "@ActiveBackup-GSuite/db/log.sqlite"))
-	if err != nil {
-		return nil, err
-	}
-	confDB, err := sqlx.Connect("sqlite3", path.Join(dataDir, "@ActiveBackup-GSuite/db/config.sqlite"))
-	if err != nil {
-		return nil, err
-	}
+	logDB_Path := path.Join(dataDir, "@ActiveBackup-GSuite/db/log.sqlite")
+	confDB_Path := path.Join(dataDir, "@ActiveBackup-GSuite/db/config.sqlite")
 
 	return &gsuiteCollector{
-		logDB:  logDB,
-		confDB: confDB,
+		logDB_Path:  logDB_Path,
+		confDB_Path: confDB_Path,
 		statusMetric: prometheus.NewDesc("ab_gsuite_device_result_status",
 			"Status of the latest task",
 			[]string{"task_name"},
@@ -228,8 +223,8 @@ func newGSuiteCollector(dataDir string) (*gsuiteCollector, error) {
 	}, nil
 }
 
-//Each and every collector must implement the Describe function.
-//It essentially writes all descriptors to the prometheus desc channel.
+// Each and every collector must implement the Describe function.
+// It essentially writes all descriptors to the prometheus desc channel.
 func (collector *gsuiteCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.statusMetric
 	ch <- collector.errorCodeMetric
@@ -270,20 +265,26 @@ func taskNameLookup(lookup []taskName, id int) string {
 		}
 	}
 
-	return string(id)
+	return fmt.Sprint(id)
 
 }
 
-//Collect implements required collect function for all promehteus collectors
+// Collect implements required collect function for all promehteus collectors
 func (collector *gsuiteCollector) Collect(ch chan<- prometheus.Metric) {
 	taskNames := []taskName{}
-	err := collector.confDB.Select(&taskNames, "SELECT task_id, task_name FROM task_info_table;")
+	confDB, err := sqlx.Connect("sqlite3", collector.confDB_Path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = confDB.Select(&taskNames, "SELECT task_id, task_name FROM task_info_table;")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	results := []jobResult{}
-	err = collector.logDB.Select(&results, ` SELECT task_id, execution_status, transfered_size, start_run_time, end_run_time, error_code,
+	logDB, err := sqlx.Connect("sqlite3", collector.logDB_Path)
+	err = logDB.Select(&results, ` SELECT task_id, execution_status, transfered_size, start_run_time, end_run_time, error_code,
 		drive_success_count,drive_warning_count,drive_error_count,drive_transfered_size,
 		teamdrive_success_count,teamdrive_warning_count,teamdrive_error_count,teamdrive_transfered_size,
 		mail_success_count,mail_warning_count,mail_error_count,mail_transfered_size,

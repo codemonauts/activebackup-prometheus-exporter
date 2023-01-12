@@ -9,7 +9,7 @@ import (
 )
 
 type abbCollector struct {
-	activityDB            *sqlx.DB
+	activityDB_Path       string
 	statusMetric          *prometheus.Desc
 	startTimeMetric       *prometheus.Desc
 	endTimeMetric         *prometheus.Desc
@@ -25,13 +25,12 @@ type deviceResult struct {
 }
 
 func newABBCollector(dataDir string) (*abbCollector, error) {
-	activityDB, err := sqlx.Connect("sqlite3", path.Join(dataDir, "@ActiveBackup/activity.db"))
-	if err != nil {
-		return nil, err
-	}
+
+	// TODO: Keine connection reinreichen sondern nur filename damit man innendrin die connection auf und zu machen kann
+	activityDB_Path := path.Join(dataDir, "@ActiveBackup/activity.db")
 
 	return &abbCollector{
-		activityDB: activityDB,
+		activityDB_Path: activityDB_Path,
 		statusMetric: prometheus.NewDesc("ab_business_device_result_status",
 			"Status of the latest device backup",
 			[]string{"device_name"},
@@ -55,8 +54,8 @@ func newABBCollector(dataDir string) (*abbCollector, error) {
 	}, nil
 }
 
-//Each and every collector must implement the Describe function.
-//It essentially writes all descriptors to the prometheus desc channel.
+// Each and every collector must implement the Describe function.
+// It essentially writes all descriptors to the prometheus desc channel.
 func (collector *abbCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.statusMetric
 	ch <- collector.startTimeMetric
@@ -64,10 +63,11 @@ func (collector *abbCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.transferedBytesMetric
 }
 
-//Collect implements required collect function for all promehteus collectors
+// Collect implements required collect function for all promehteus collectors
 func (collector *abbCollector) Collect(ch chan<- prometheus.Metric) {
 	results := []deviceResult{}
-	err := collector.activityDB.Select(&results, `SELECT status, device_name, time_start,time_end,transfered_bytes FROM device_result_table
+	activityDB, err := sqlx.Connect("sqlite3", collector.activityDB_Path)
+	err = activityDB.Select(&results, `SELECT status, device_name, time_start,time_end,transfered_bytes FROM device_result_table
 			WHERE device_result_id IN (SELECT max(device_result_id) FROM device_result_table WHERE time_end != 0 GROUP BY device_name);`)
 	if err != nil {
 		log.Fatalln(err)
